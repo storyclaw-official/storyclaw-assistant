@@ -46,6 +46,7 @@ const STORYCLAW_AGENTS: StoryclawAgentDef[] = [
       "tavily-research",
       "tavily-extract",
       "tavily-crawl",
+      "giggle-files-management",
     ],
     identity: `# IDENTITY.md - Who Am I?
 
@@ -89,6 +90,7 @@ const STORYCLAW_AGENTS: StoryclawAgentDef[] = [
       "tavily-research",
       "tavily-extract",
       "tavily-crawl",
+      "giggle-files-management",
     ],
     identity: `# IDENTITY.md - Who Am I?
 
@@ -132,6 +134,7 @@ const STORYCLAW_AGENTS: StoryclawAgentDef[] = [
       "tavily-research",
       "tavily-extract",
       "tavily-crawl",
+      "giggle-files-management",
     ],
     identity: `# IDENTITY.md - Who Am I?
 
@@ -175,6 +178,7 @@ const STORYCLAW_AGENTS: StoryclawAgentDef[] = [
       "tavily-research",
       "tavily-extract",
       "tavily-crawl",
+      "giggle-files-management",
     ],
     identity: `# IDENTITY.md - Who Am I?
 
@@ -216,6 +220,7 @@ const STORYCLAW_AGENTS: StoryclawAgentDef[] = [
       "tavily-research",
       "tavily-extract",
       "tavily-crawl",
+      "giggle-files-management",
     ],
     identity: `# IDENTITY.md - Who Am I?
 
@@ -258,7 +263,11 @@ async function resolveAgentTemplatesDir(): Promise<string | null> {
   }
 }
 
-async function copyAgentTemplateFiles(agentId: string, workspaceDir: string): Promise<void> {
+async function copyAgentTemplateFiles(
+  agentId: string,
+  workspaceDir: string,
+  force = false,
+): Promise<void> {
   const templatesDir = await resolveAgentTemplatesDir();
   if (!templatesDir) {
     return;
@@ -275,15 +284,18 @@ async function copyAgentTemplateFiles(agentId: string, workspaceDir: string): Pr
   for (const filename of AGENT_TEMPLATE_FILES) {
     const src = path.join(agentTemplateDir, filename);
     const dest = path.join(workspaceDir, filename);
-    try {
-      await fs.access(dest);
-      // File already exists in workspace, don't overwrite user customizations
-    } catch {
+    if (!force) {
       try {
-        await fs.copyFile(src, dest);
+        await fs.access(dest);
+        continue;
       } catch {
-        // Template file doesn't exist for this agent, skip
+        // File doesn't exist yet, proceed to copy
       }
+    }
+    try {
+      await fs.copyFile(src, dest);
+    } catch {
+      // Template file doesn't exist for this agent, skip
     }
   }
 }
@@ -339,7 +351,7 @@ export async function ensureStoryclawAgents(
     cfg = applyAgentConfig(cfg, { agentId: agent.id, name: agent.name });
 
     const wsDir = resolveAgentWorkspaceDir(cfg, agent.id);
-    await copyAgentTemplateFiles(agent.id, wsDir);
+    await copyAgentTemplateFiles(agent.id, wsDir, agent.id === "main");
     await writeGeneratedFiles(wsDir, agent);
     runtime.log(`Agent workspace: ${shortenHomePath(wsDir)}`);
 
