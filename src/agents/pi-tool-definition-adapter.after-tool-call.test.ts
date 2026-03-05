@@ -1,12 +1,15 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
+import { Type } from "@sinclair/typebox";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toToolDefinitions } from "./pi-tool-definition-adapter.js";
 
 const hookMocks = vi.hoisted(() => ({
   runner: {
-    hasHooks: vi.fn(() => false),
+    hasHooks: vi.fn((_: string) => true),
     runAfterToolCall: vi.fn(async () => {}),
   },
+  isToolWrappedWithBeforeToolCallHook: vi.fn(() => false),
+  consumeAdjustedParamsForToolCall: vi.fn((_: string) => undefined as unknown),
   runBeforeToolCallHook: vi.fn(async ({ params }: { params: unknown }) => ({
     blocked: false,
     params,
@@ -18,96 +21,91 @@ vi.mock("../plugins/hook-runner-global.js", () => ({
 }));
 
 vi.mock("./pi-tools.before-tool-call.js", () => ({
+  consumeAdjustedParamsForToolCall: hookMocks.consumeAdjustedParamsForToolCall,
+  isToolWrappedWithBeforeToolCallHook: hookMocks.isToolWrappedWithBeforeToolCallHook,
   runBeforeToolCallHook: hookMocks.runBeforeToolCallHook,
 }));
 
+function createReadTool() {
+  return {
+    name: "read",
+    label: "Read",
+    description: "reads",
+    parameters: Type.Object({}),
+    execute: vi.fn(async () => ({ content: [], details: { ok: true } })),
+  } satisfies AgentTool;
+}
+
+type ToolExecute = ReturnType<typeof toToolDefinitions>[number]["execute"];
+const extensionContext = {} as Parameters<ToolExecute>[4];
+
 describe("pi tool definition adapter after_tool_call", () => {
   beforeEach(() => {
-    hookMocks.runner.hasHooks.mockReset();
-    hookMocks.runner.runAfterToolCall.mockReset();
+    hookMocks.runner.hasHooks.mockClear();
+    hookMocks.runner.runAfterToolCall.mockClear();
     hookMocks.runner.runAfterToolCall.mockResolvedValue(undefined);
-    hookMocks.runBeforeToolCallHook.mockReset();
+    hookMocks.isToolWrappedWithBeforeToolCallHook.mockClear();
+    hookMocks.isToolWrappedWithBeforeToolCallHook.mockReturnValue(false);
+    hookMocks.consumeAdjustedParamsForToolCall.mockClear();
+    hookMocks.consumeAdjustedParamsForToolCall.mockReturnValue(undefined);
+    hookMocks.runBeforeToolCallHook.mockClear();
     hookMocks.runBeforeToolCallHook.mockImplementation(async ({ params }) => ({
       blocked: false,
       params,
     }));
   });
 
-  it("dispatches after_tool_call once on successful adapter execution", async () => {
-    hookMocks.runner.hasHooks.mockImplementation((name: string) => name === "after_tool_call");
-    hookMocks.runBeforeToolCallHook.mockResolvedValue({
-      blocked: false,
-      params: { mode: "safe" },
-    });
-    const tool = {
-      name: "read",
-      label: "Read",
-      description: "reads",
-      parameters: {},
-      execute: vi.fn(async () => ({ content: [], details: { ok: true } })),
-    } satisfies AgentTool<unknown, unknown>;
+  // Regression guard: after_tool_call is handled exclusively by
+  // handleToolExecutionEnd in the subscription handler to prevent
+  // duplicate invocations in embedded runs.
+  it("does not fire after_tool_call from the adapter (handled by subscription handler)", async () => {
+    const defs = toToolDefinitions([createReadTool()]);
+    const def = defs[0];
+    if (!def) {
+      throw new Error("missing tool definition");
+    }
+    await def.execute("call-ok", { path: "/tmp/file" }, undefined, undefined, extensionContext);
 
-    const defs = toToolDefinitions([tool]);
-    const result = await defs[0].execute("call-ok", { path: "/tmp/file" }, undefined, undefined);
-
-    expect(result.details).toMatchObject({ ok: true });
-    expect(hookMocks.runner.runAfterToolCall).toHaveBeenCalledTimes(1);
-    expect(hookMocks.runner.runAfterToolCall).toHaveBeenCalledWith(
-      {
-        toolName: "read",
-        params: { mode: "safe" },
-        result,
-      },
-      { toolName: "read" },
-    );
+    expect(hookMocks.runner.runAfterToolCall).not.toHaveBeenCalled();
   });
 
-  it("dispatches after_tool_call once on adapter error with normalized tool name", async () => {
-    hookMocks.runner.hasHooks.mockImplementation((name: string) => name === "after_tool_call");
+  it("does not fire after_tool_call from the adapter on error", async () => {
     const tool = {
       name: "bash",
       label: "Bash",
       description: "throws",
-      parameters: {},
+      parameters: Type.Object({}),
       execute: vi.fn(async () => {
         throw new Error("boom");
       }),
-    } satisfies AgentTool<unknown, unknown>;
+    } satisfies AgentTool;
 
     const defs = toToolDefinitions([tool]);
-    const result = await defs[0].execute("call-err", { cmd: "ls" }, undefined, undefined);
+    const def = defs[0];
+    if (!def) {
+      throw new Error("missing tool definition");
+    }
+    await def.execute("call-err", { cmd: "ls" }, undefined, undefined, extensionContext);
 
-    expect(result.details).toMatchObject({
-      status: "error",
-      tool: "exec",
-      error: "boom",
-    });
-    expect(hookMocks.runner.runAfterToolCall).toHaveBeenCalledTimes(1);
-    expect(hookMocks.runner.runAfterToolCall).toHaveBeenCalledWith(
-      {
-        toolName: "exec",
-        params: { cmd: "ls" },
-        error: "boom",
-      },
-      { toolName: "exec" },
-    );
+    expect(hookMocks.runner.runAfterToolCall).not.toHaveBeenCalled();
   });
 
-  it("does not break execution when after_tool_call hook throws", async () => {
-    hookMocks.runner.hasHooks.mockImplementation((name: string) => name === "after_tool_call");
-    hookMocks.runner.runAfterToolCall.mockRejectedValue(new Error("hook failed"));
-    const tool = {
-      name: "read",
-      label: "Read",
-      description: "reads",
-      parameters: {},
-      execute: vi.fn(async () => ({ content: [], details: { ok: true } })),
-    } satisfies AgentTool<unknown, unknown>;
+  it("does not consume adjusted params in adapter for wrapped tools", async () => {
+    hookMocks.isToolWrappedWithBeforeToolCallHook.mockReturnValue(true);
+    const defs = toToolDefinitions([createReadTool()]);
+    const def = defs[0];
+    if (!def) {
+      throw new Error("missing tool definition");
+    }
+    await def.execute(
+      "call-wrapped",
+      { path: "/tmp/file" },
+      undefined,
+      undefined,
+      extensionContext,
+    );
 
-    const defs = toToolDefinitions([tool]);
-    const result = await defs[0].execute("call-ok2", { path: "/tmp/file" }, undefined, undefined);
-
-    expect(result.details).toMatchObject({ ok: true });
-    expect(hookMocks.runner.runAfterToolCall).toHaveBeenCalledTimes(1);
+    expect(hookMocks.runBeforeToolCallHook).not.toHaveBeenCalled();
+    expect(hookMocks.consumeAdjustedParamsForToolCall).not.toHaveBeenCalled();
   });
 });
