@@ -63,7 +63,7 @@ import {
 } from "./onboard-auth.config-shared.js";
 import {
   buildMistralModelDefinition,
-  buildStoryclawModelDefinition,
+  buildStoryclawModelDefinitions,
   buildZaiModelDefinition,
   buildMoonshotModelDefinition,
   buildXaiModelDefinition,
@@ -79,13 +79,16 @@ import {
   MOONSHOT_DEFAULT_MODEL_REF,
   ZAI_DEFAULT_MODEL_ID,
   resolveZaiBaseUrl,
-  STORYCLAW_BASE_URL,
-  STORYCLAW_DEFAULT_MODEL_ID,
+  STORYCLAW_AP_BASE_URL,
+  STORYCLAW_US_BASE_URL,
   XAI_BASE_URL,
   XAI_DEFAULT_MODEL_ID,
 } from "./onboard-auth.models.js";
 
-export function applyStoryclawProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+function applyStoryclawProviderConfigWithBaseUrl(
+  cfg: OpenClawConfig,
+  baseUrl: string,
+): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };
   models[STORYCLAW_DEFAULT_MODEL_REF] = {
     ...models[STORYCLAW_DEFAULT_MODEL_REF],
@@ -95,9 +98,15 @@ export function applyStoryclawProviderConfig(cfg: OpenClawConfig): OpenClawConfi
   const providers = { ...cfg.models?.providers };
   const existingProvider = providers.storyclaw;
   const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
-  const defaultModel = buildStoryclawModelDefinition();
-  const hasDefaultModel = existingModels.some((model) => model.id === STORYCLAW_DEFAULT_MODEL_ID);
-  const mergedModels = hasDefaultModel ? existingModels : [...existingModels, defaultModel];
+  const catalogModels = buildStoryclawModelDefinitions();
+  const mergedModels = [...existingModels];
+  const seen = new Set(existingModels.map((m) => m.id));
+  for (const model of catalogModels) {
+    if (!seen.has(model.id)) {
+      mergedModels.push(model);
+      seen.add(model.id);
+    }
+  }
   const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
     string,
     unknown
@@ -106,48 +115,31 @@ export function applyStoryclawProviderConfig(cfg: OpenClawConfig): OpenClawConfi
   const normalizedApiKey = resolvedApiKey?.trim();
   providers.storyclaw = {
     ...existingProviderRest,
-    baseUrl: STORYCLAW_BASE_URL,
+    baseUrl,
     api: "openai-completions",
     ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
-    models: mergedModels.length > 0 ? mergedModels : [defaultModel],
+    models: mergedModels.length > 0 ? mergedModels : catalogModels,
   };
 
-  return {
-    ...cfg,
-    agents: {
-      ...cfg.agents,
-      defaults: {
-        ...cfg.agents?.defaults,
-        models,
-      },
-    },
-    models: {
-      mode: cfg.models?.mode ?? "merge",
-      providers,
-    },
-  };
+  return applyOnboardAuthAgentModelsAndProviders(cfg, { agentModels: models, providers });
 }
 
-export function applyStoryclawConfig(cfg: OpenClawConfig): OpenClawConfig {
-  const next = applyStoryclawProviderConfig(cfg);
-  const existingModel = next.agents?.defaults?.model;
-  return {
-    ...next,
-    agents: {
-      ...next.agents,
-      defaults: {
-        ...next.agents?.defaults,
-        model: {
-          ...(existingModel && "fallbacks" in (existingModel as Record<string, unknown>)
-            ? {
-                fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks,
-              }
-            : undefined),
-          primary: STORYCLAW_DEFAULT_MODEL_REF,
-        },
-      },
-    },
-  };
+export function applyStoryclawApProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  return applyStoryclawProviderConfigWithBaseUrl(cfg, STORYCLAW_AP_BASE_URL);
+}
+
+export function applyStoryclawApConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applyStoryclawApProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, STORYCLAW_DEFAULT_MODEL_REF);
+}
+
+export function applyStoryclawUsProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  return applyStoryclawProviderConfigWithBaseUrl(cfg, STORYCLAW_US_BASE_URL);
+}
+
+export function applyStoryclawUsConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applyStoryclawUsProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, STORYCLAW_DEFAULT_MODEL_REF);
 }
 
 export function applyZaiProviderConfig(

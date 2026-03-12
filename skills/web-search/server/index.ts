@@ -3,8 +3,8 @@
  * Provides HTTP API for browser control and search operations
  */
 
-import express, { NextFunction, Request, Response } from "express";
 import { Server } from "http";
+import express, { NextFunction, Request, Response } from "express";
 import { Config, mergeConfig } from "./config";
 import {
   launchBrowser,

@@ -11,7 +11,7 @@ export type CommandRunner = (
 ) => Promise<{ stdout: string; stderr: string; code: number | null }>;
 
 const PRIMARY_PACKAGE_NAME = "openclaw";
-const ALL_PACKAGE_NAMES = [PRIMARY_PACKAGE_NAME] as const;
+const ALL_PACKAGE_NAMES = [PRIMARY_PACKAGE_NAME, "storyclaw-assistant"] as const;
 const GLOBAL_RENAME_PREFIX = ".";
 const NPM_GLOBAL_INSTALL_QUIET_FLAGS = ["--no-fund", "--no-audit", "--loglevel=error"] as const;
 const NPM_GLOBAL_INSTALL_OMIT_OPTIONAL_FLAGS = [

@@ -7,8 +7,7 @@ metadata:
     "openclaw":
       {
         "emoji": "🔊",
-        "requires":
-          { "bins": ["ffmpeg"], "env": ["MINIMAX_API_KEY", "MINIMAX_GROUP_ID"] },
+        "requires": { "bins": ["ffmpeg"], "env": ["MINIMAX_API_KEY", "MINIMAX_GROUP_ID"] },
         "primaryEnv": "MINIMAX_API_KEY",
         "install":
           [

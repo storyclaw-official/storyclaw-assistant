@@ -1,17 +1,26 @@
 import { estimateBase64DecodedBytes } from "../media/base64.js";
 import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
 
+function isAudioMime(mime?: string): boolean {
+  return typeof mime === "string" && mime.startsWith("audio/");
+}
+
+const URL_FETCH_MAX_BYTES = 20_000_000; // 20 MB limit for URL-fetched attachments
+const URL_FETCH_TIMEOUT_MS = 30_000;
+
 export type ChatAttachment = {
   type?: string;
   mimeType?: string;
   fileName?: string;
   content?: unknown;
+  url?: string;
 };
 
 export type ChatImageContent = {
   type: "image";
   data: string;
   mimeType: string;
+  sourceUrl?: string;
 };
 
 export type ParsedMessageWithImages = {
@@ -90,9 +99,57 @@ function validateAttachmentBase64OrThrow(
 }
 
 /**
+ * Fetch a URL and return its body as a base64 string.
+ * Enforces a byte-size limit and timeout. Retries once after a short delay
+ * to handle CDN propagation lag for freshly-uploaded assets.
+ */
+async function fetchUrlAsBase64(
+  url: string,
+  opts: { maxBytes: number; timeoutMs: number },
+): Promise<{ base64: string; contentType?: string }> {
+  async function attempt(): Promise<{ base64: string; contentType?: string }> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "OpenClaw-Gateway/1.0" },
+        redirect: "follow",
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength > opts.maxBytes) {
+        throw new Error(`response too large (${buf.byteLength} > ${opts.maxBytes} bytes)`);
+      }
+      const base64 = Buffer.from(buf).toString("base64");
+      const contentType = res.headers.get("content-type") ?? undefined;
+      return { base64, contentType };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  try {
+    return await attempt();
+  } catch {
+    // Retry once after a short delay to handle CDN propagation lag
+    await new Promise((r) => setTimeout(r, 1500));
+    return await attempt();
+  }
+}
+
+/**
  * Parse attachments and extract images as structured content blocks.
- * Returns the message text and an array of image content blocks
- * compatible with Claude API's image format.
+ * Returns the message text (potentially augmented with file/audio references)
+ * and an array of image content blocks compatible with Claude API's image format.
+ *
+ * Supports three attachment categories:
+ * - Base64 image attachments (existing behaviour)
+ * - Base64 audio attachments: embedded as data-URL in the message text
+ * - URL-based attachments: images are fetched and converted to base64;
+ *   non-images are appended as markdown links in the message text
  */
 export async function parseMessageWithAttachments(
   message: string,
@@ -106,19 +163,63 @@ export async function parseMessageWithAttachments(
   }
 
   const images: ChatImageContent[] = [];
+  const textAppendBlocks: string[] = [];
 
   for (const [idx, att] of attachments.entries()) {
     if (!att) {
       continue;
     }
+
+    const label = att.fileName || att.type || `attachment-${idx + 1}`;
+    const providedMime = normalizeMime(att.mimeType);
+
+    // --- URL-based attachments (no inline content) ---
+    if (att.url && !att.content) {
+      if (isImageMime(providedMime)) {
+        try {
+          const { base64, contentType } = await fetchUrlAsBase64(att.url, {
+            maxBytes: URL_FETCH_MAX_BYTES,
+            timeoutMs: URL_FETCH_TIMEOUT_MS,
+          });
+          const resolvedMime = normalizeMime(contentType) ?? providedMime ?? "image/jpeg";
+          images.push({ type: "image", data: base64, mimeType: resolvedMime, sourceUrl: att.url });
+        } catch (err) {
+          log?.warn(
+            `attachment ${label}: failed to fetch image URL (${err instanceof Error ? err.message : String(err)}), falling back to text`,
+          );
+          textAppendBlocks.push(`[Attached image: ${label}](${att.url})`);
+        }
+      } else {
+        textAppendBlocks.push(`[Attached file: ${label}](${att.url})`);
+      }
+      continue;
+    }
+
+    // --- Base64 content attachments ---
+    if (!att.content) {
+      continue;
+    }
+
+    // Audio attachments: embed as data URL in message text
+    if (isAudioMime(providedMime)) {
+      const normalized = normalizeAttachment(att, idx, {
+        stripDataUrlPrefix: true,
+        requireImageMime: false,
+      });
+      validateAttachmentBase64OrThrow(normalized, { maxBytes });
+      const mime = providedMime ?? "audio/webm";
+      textAppendBlocks.push(`[Audio: data:${mime};base64,${normalized.base64}]`);
+      continue;
+    }
+
+    // Image attachments (existing behaviour)
     const normalized = normalizeAttachment(att, idx, {
       stripDataUrlPrefix: true,
       requireImageMime: false,
     });
     validateAttachmentBase64OrThrow(normalized, { maxBytes });
-    const { base64: b64, label, mime } = normalized;
+    const { base64: b64, mime } = normalized;
 
-    const providedMime = normalizeMime(mime);
     const sniffedMime = normalizeMime(await sniffMimeFromBase64(b64));
     if (sniffedMime && !isImageMime(sniffedMime)) {
       log?.warn(`attachment ${label}: detected non-image (${sniffedMime}), dropping`);
@@ -141,7 +242,12 @@ export async function parseMessageWithAttachments(
     });
   }
 
-  return { message, images };
+  const finalMessage =
+    textAppendBlocks.length > 0
+      ? `${message}${message.trim().length > 0 ? "\n\n" : ""}${textAppendBlocks.join("\n\n")}`
+      : message;
+
+  return { message: finalMessage, images };
 }
 
 /**

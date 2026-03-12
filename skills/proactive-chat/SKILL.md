@@ -1,13 +1,7 @@
 ---
 name: proactive-chat
 description: Generate and send proactive messages based on trigger files and emotion-journal context.
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "💬",
-      },
-  }
+metadata: { "openclaw": { "emoji": "💬" } }
 ---
 
 # 技能：proactive-chat

@@ -1,13 +1,7 @@
 ---
 name: emotion-journal
 description: Read and write emotion journal entries, maintain conversation history summaries, user profiles, and follow-up topic lists.
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "📔",
-      },
-  }
+metadata: { "openclaw": { "emoji": "📔" } }
 ---
 
 # 技能：emotion-journal

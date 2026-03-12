@@ -28,6 +28,7 @@ export type AuthChoice =
   | "apiKey"
   | "gemini-api-key"
   | "google-gemini-cli"
+  | "google-antigravity"
   | "zai-api-key"
   | "zai-coding-global"
   | "zai-coding-cn"
@@ -50,6 +51,8 @@ export type AuthChoice =
   | "byteplus-api-key"
   | "qianfan-api-key"
   | "storyclaw-api-key"
+  | "storyclaw-ap-api-key"
+  | "storyclaw-us-api-key"
   | "custom-api-key"
   | "skip";
 export type AuthChoiceGroupId =

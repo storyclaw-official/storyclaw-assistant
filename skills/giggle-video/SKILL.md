@@ -5,11 +5,7 @@ homepage: https://giggle.pro
 metadata:
   {
     "openclaw":
-      {
-        "emoji": "🎬",
-        "requires": { "env": ["GIGGLE_API_KEY"] },
-        "primaryEnv": "GIGGLE_API_KEY",
-      },
+      { "emoji": "🎬", "requires": { "env": ["GIGGLE_API_KEY"] }, "primaryEnv": "GIGGLE_API_KEY" },
   }
 ---
 

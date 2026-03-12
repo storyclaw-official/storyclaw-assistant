@@ -11,29 +11,6 @@ export type AuthChoiceOption = {
   hint?: string;
 };
 
-export type AuthChoiceGroupId =
-  | "storyclaw"
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "copilot"
-  | "openrouter"
-  | "litellm"
-  | "ai-gateway"
-  | "cloudflare-ai-gateway"
-  | "moonshot"
-  | "zai"
-  | "xiaomi"
-  | "opencode-zen"
-  | "minimax"
-  | "synthetic"
-  | "venice"
-  | "qwen"
-  | "together"
-  | "qianfan"
-  | "xai"
-  | "custom";
-
 export type AuthChoiceGroup = {
   value: AuthChoiceGroupId;
   label: string;
@@ -50,8 +27,8 @@ const AUTH_CHOICE_GROUP_DEFS: {
   {
     value: "storyclaw",
     label: "StoryClaw",
-    hint: "MiniMax M2.5 (recommended)",
-    choices: ["storyclaw-api-key"],
+    hint: "Asia / US endpoint",
+    choices: ["storyclaw-ap-api-key", "storyclaw-us-api-key"],
   },
   {
     value: "openai",
@@ -356,9 +333,14 @@ export function buildAuthChoiceOptions(params: {
   const options: AuthChoiceOption[] = [];
 
   options.push({
-    value: "storyclaw-api-key",
-    label: "StoryClaw API key",
-    hint: "Get key at app.storyclaw.com",
+    value: "storyclaw-ap-api-key",
+    label: "StoryClaw (Asia)",
+    hint: "llm-ap.gqapi.com",
+  });
+  options.push({
+    value: "storyclaw-us-api-key",
+    label: "StoryClaw (US)",
+    hint: "llm-us.gqapi.com",
   });
 
   options.push({

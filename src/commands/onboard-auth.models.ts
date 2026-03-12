@@ -189,11 +189,10 @@ export function buildZaiModelDefinition(params: {
   };
 }
 
-export const STORYCLAW_BASE_URL = "https://api-llm.storyclaw.com/openai/v1";
+export const STORYCLAW_AP_BASE_URL = "https://llm-ap.gqapi.com/openai/v1";
+export const STORYCLAW_US_BASE_URL = "https://llm-us.gqapi.com/openai/v1";
 export const STORYCLAW_DEFAULT_MODEL_ID = "MiniMax-M2.5";
 export const STORYCLAW_DEFAULT_MODEL_REF = `storyclaw/${STORYCLAW_DEFAULT_MODEL_ID}`;
-export const STORYCLAW_DEFAULT_CONTEXT_WINDOW = 200_000;
-export const STORYCLAW_DEFAULT_MAX_TOKENS = 8192;
 export const STORYCLAW_DEFAULT_COST = {
   input: 0,
   output: 0,
@@ -201,16 +200,51 @@ export const STORYCLAW_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
-export function buildStoryclawModelDefinition(): ModelDefinitionConfig {
-  return {
-    id: STORYCLAW_DEFAULT_MODEL_ID,
+const STORYCLAW_MODEL_CATALOG = [
+  {
+    id: "MiniMax-M2.5",
     name: "MiniMax M2.5",
     reasoning: false,
-    input: ["text"],
+    input: ["text"] as const,
+    contextWindow: 200_000,
+    maxTokens: 8192,
+  },
+  {
+    id: "kimi-k2.5",
+    name: "Kimi K2.5",
+    reasoning: false,
+    input: ["text", "image"] as const,
+    contextWindow: 256_000,
+    maxTokens: 8192,
+  },
+  {
+    id: "gemini-3-flash-preview",
+    name: "Gemini 3 Flash Preview",
+    reasoning: false,
+    input: ["text", "image"] as const,
+    contextWindow: 1_000_000,
+    maxTokens: 65536,
+  },
+  {
+    id: "gemini-3.1-flash-lite-preview",
+    name: "Gemini 3.1 Flash Lite Preview",
+    reasoning: false,
+    input: ["text", "image"] as const,
+    contextWindow: 1_000_000,
+    maxTokens: 65536,
+  },
+] as const;
+
+export function buildStoryclawModelDefinitions(): ModelDefinitionConfig[] {
+  return STORYCLAW_MODEL_CATALOG.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    reasoning: entry.reasoning,
+    input: [...entry.input],
     cost: STORYCLAW_DEFAULT_COST,
-    contextWindow: STORYCLAW_DEFAULT_CONTEXT_WINDOW,
-    maxTokens: STORYCLAW_DEFAULT_MAX_TOKENS,
-  };
+    contextWindow: entry.contextWindow,
+    maxTokens: entry.maxTokens,
+  }));
 }
 
 export const XAI_BASE_URL = "https://api.x.ai/v1";

@@ -895,6 +895,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         mimeType?: string;
         fileName?: string;
         content?: unknown;
+        url?: string;
       }>;
       timeoutMs?: number;
       systemInputProvenance?: InputProvenance;
