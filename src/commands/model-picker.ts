@@ -235,8 +235,16 @@ export async function promptDefaultModel(
     });
   }
 
-  const providerIds = Array.from(new Set(models.map((entry) => entry.provider))).toSorted((a, b) =>
-    a.localeCompare(b),
+  const providerIds = Array.from(new Set(models.map((entry) => entry.provider))).toSorted(
+    (a, b) => {
+      if (a === "storyclaw") {
+        return -1;
+      }
+      if (b === "storyclaw") {
+        return 1;
+      }
+      return a.localeCompare(b);
+    },
   );
 
   const hasPreferredProvider = preferredProvider ? providerIds.includes(preferredProvider) : false;
