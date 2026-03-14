@@ -89,6 +89,29 @@ import {
   MODELSTUDIO_DEFAULT_MODEL_REF,
 } from "./onboard-auth.models.js";
 
+function mergeProviderModels<T extends { id: string }>(
+  existingProvider: Record<string, unknown> | undefined,
+  defaultModels: T[],
+): T[] {
+  const existingModels = Array.isArray(existingProvider?.models)
+    ? (existingProvider.models as T[])
+    : [];
+  const mergedModels = [...existingModels];
+  const seen = new Set(existingModels.map((model) => model.id));
+  for (const model of defaultModels) {
+    if (!seen.has(model.id)) {
+      mergedModels.push(model);
+      seen.add(model.id);
+    }
+  }
+  return mergedModels;
+}
+
+function getNormalizedProviderApiKey(existingProvider: Record<string, unknown> | undefined) {
+  const { apiKey } = (existingProvider ?? {}) as { apiKey?: string };
+  return typeof apiKey === "string" ? apiKey.trim() || undefined : undefined;
+}
+
 function applyStoryclawProviderConfigWithBaseUrl(
   cfg: OpenClawConfig,
   baseUrl: string,
@@ -101,22 +124,14 @@ function applyStoryclawProviderConfigWithBaseUrl(
 
   const providers = { ...cfg.models?.providers };
   const existingProvider = providers.storyclaw;
-  const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
   const catalogModels = buildStoryclawModelDefinitions();
-  const mergedModels = [...existingModels];
-  const seen = new Set(existingModels.map((m) => m.id));
-  for (const model of catalogModels) {
-    if (!seen.has(model.id)) {
-      mergedModels.push(model);
-      seen.add(model.id);
-    }
-  }
-  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
+  const mergedModels = mergeProviderModels(existingProvider, catalogModels);
+
+  const { apiKey: _existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
     string,
     unknown
   > as { apiKey?: string };
-  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
-  const normalizedApiKey = resolvedApiKey?.trim();
+  const normalizedApiKey = getNormalizedProviderApiKey(existingProvider);
   providers.storyclaw = {
     ...existingProviderRest,
     baseUrl,
@@ -161,7 +176,6 @@ export function applyZaiProviderConfig(
 
   const providers = { ...cfg.models?.providers };
   const existingProvider = providers.zai;
-  const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
 
   const defaultModels = [
     buildZaiModelDefinition({ id: "glm-5" }),
@@ -170,21 +184,13 @@ export function applyZaiProviderConfig(
     buildZaiModelDefinition({ id: "glm-4.7-flashx" }),
   ];
 
-  const mergedModels = [...existingModels];
-  const seen = new Set(existingModels.map((m) => m.id));
-  for (const model of defaultModels) {
-    if (!seen.has(model.id)) {
-      mergedModels.push(model);
-      seen.add(model.id);
-    }
-  }
+  const mergedModels = mergeProviderModels(existingProvider, defaultModels);
 
-  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
+  const { apiKey: _existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
     string,
     unknown
   > as { apiKey?: string };
-  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
-  const normalizedApiKey = resolvedApiKey?.trim();
+  const normalizedApiKey = getNormalizedProviderApiKey(existingProvider);
 
   const baseUrl = params?.endpoint
     ? resolveZaiBaseUrl(params.endpoint)
@@ -317,12 +323,11 @@ export function applySyntheticProviderConfig(cfg: OpenClawConfig): OpenClawConfi
       (model) => !existingModels.some((existing) => existing.id === model.id),
     ),
   ];
-  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
+  const { apiKey: _existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
     string,
     unknown
   > as { apiKey?: string };
-  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
-  const normalizedApiKey = resolvedApiKey?.trim();
+  const normalizedApiKey = getNormalizedProviderApiKey(existingProvider);
   providers.synthetic = {
     ...existingProviderRest,
     baseUrl: SYNTHETIC_BASE_URL,
@@ -670,7 +675,6 @@ function applyModelStudioProviderConfigWithBaseUrl(
 
   const providers = { ...cfg.models?.providers };
   const existingProvider = providers.modelstudio;
-  const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
 
   const defaultModels = [
     buildModelStudioModelDefinition({ id: "qwen3.5-plus" }),
@@ -683,21 +687,13 @@ function applyModelStudioProviderConfigWithBaseUrl(
     buildModelStudioModelDefinition({ id: "kimi-k2.5" }),
   ];
 
-  const mergedModels = [...existingModels];
-  const seen = new Set(existingModels.map((m) => m.id));
-  for (const model of defaultModels) {
-    if (!seen.has(model.id)) {
-      mergedModels.push(model);
-      seen.add(model.id);
-    }
-  }
+  const mergedModels = mergeProviderModels(existingProvider, defaultModels);
 
-  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
+  const { apiKey: _existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
     string,
     unknown
   > as { apiKey?: string };
-  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
-  const normalizedApiKey = resolvedApiKey?.trim();
+  const normalizedApiKey = getNormalizedProviderApiKey(existingProvider);
 
   providers.modelstudio = {
     ...existingProviderRest,
