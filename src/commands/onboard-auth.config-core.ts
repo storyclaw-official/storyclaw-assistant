@@ -117,14 +117,19 @@ function applyStoryclawProviderConfigWithBaseUrl(
   baseUrl: string,
 ): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };
-  models[STORYCLAW_DEFAULT_MODEL_REF] = {
-    ...models[STORYCLAW_DEFAULT_MODEL_REF],
-    alias: models[STORYCLAW_DEFAULT_MODEL_REF]?.alias ?? "StoryClaw",
-  };
+  const catalogModels = buildStoryclawModelDefinitions();
+
+  // Add all StoryClaw catalog models to the allowlist so /models shows them all
+  for (const entry of catalogModels) {
+    const ref = `storyclaw/${entry.id}`;
+    models[ref] = {
+      ...models[ref],
+      ...(ref === STORYCLAW_DEFAULT_MODEL_REF ? { alias: models[ref]?.alias ?? "StoryClaw" } : {}),
+    };
+  }
 
   const providers = { ...cfg.models?.providers };
   const existingProvider = providers.storyclaw;
-  const catalogModels = buildStoryclawModelDefinitions();
   const mergedModels = mergeProviderModels(existingProvider, catalogModels);
 
   const { apiKey: _existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
