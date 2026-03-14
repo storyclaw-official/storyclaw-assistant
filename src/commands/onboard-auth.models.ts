@@ -206,45 +206,38 @@ const STORYCLAW_MODEL_CATALOG = [
     name: "MiniMax M2.5",
     reasoning: false,
     input: ["text"] as const,
-    contextWindow: 200_000,
-    maxTokens: 8192,
   },
   {
     id: "kimi-k2.5",
     name: "Kimi K2.5",
     reasoning: false,
     input: ["text", "image"] as const,
-    contextWindow: 256_000,
-    maxTokens: 8192,
   },
   {
     id: "gemini-3-flash-preview",
     name: "Gemini 3 Flash Preview",
     reasoning: false,
     input: ["text", "image"] as const,
-    contextWindow: 1_000_000,
-    maxTokens: 65536,
   },
   {
     id: "gemini-3.1-flash-lite-preview",
     name: "Gemini 3.1 Flash Lite Preview",
     reasoning: false,
     input: ["text", "image"] as const,
-    contextWindow: 1_000_000,
-    maxTokens: 65536,
   },
 ] as const;
 
 export function buildStoryclawModelDefinitions(): ModelDefinitionConfig[] {
-  return STORYCLAW_MODEL_CATALOG.map((entry) => ({
-    id: entry.id,
-    name: entry.name,
-    reasoning: entry.reasoning,
-    input: [...entry.input],
-    cost: STORYCLAW_DEFAULT_COST,
-    contextWindow: entry.contextWindow,
-    maxTokens: entry.maxTokens,
-  }));
+  return STORYCLAW_MODEL_CATALOG.map(
+    (entry) =>
+      ({
+        id: entry.id,
+        name: entry.name,
+        reasoning: entry.reasoning,
+        input: [...entry.input],
+        cost: STORYCLAW_DEFAULT_COST,
+      }) as ModelDefinitionConfig,
+  );
 }
 
 export const XAI_BASE_URL = "https://api.x.ai/v1";

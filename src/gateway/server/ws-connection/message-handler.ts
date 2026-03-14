@@ -40,7 +40,7 @@ import {
   resolveClientIp,
 } from "../../net.js";
 import { resolveNodeCommandAllowlist } from "../../node-command-policy.js";
-import { checkBrowserOrigin } from "../../origin-check.js";
+import { checkBrowserOrigin, isBuiltinAllowedOrigin } from "../../origin-check.js";
 import { GATEWAY_CLIENT_IDS } from "../../protocol/client-info.js";
 import {
   ConnectErrorDetailCodes,
@@ -532,9 +532,13 @@ export function attachGatewayWsMessageHandler(params: {
             isLocalClient,
           });
           // Shared token/password auth can bypass pairing for trusted operators, but
-          // device-less backend clients must not self-declare scopes. Control UI
-          // keeps its explicitly allowed device-less scopes on the allow path.
-          if (!device && (!isControlUi || decision.kind !== "allow")) {
+          // device-less backend clients must not self-declare scopes.  Scopes are
+          // preserved on the allow path for clients whose origin was already
+          // validated: Control UI, browser sessions (origin check ran above),
+          // and first-party builtin-origin clients.
+          const isTrustedOriginClient = isBuiltinAllowedOrigin(requestOrigin);
+          const preserveScopes = isControlUi || hasBrowserOriginHeader || isTrustedOriginClient;
+          if (!device && (!preserveScopes || decision.kind !== "allow")) {
             clearUnboundScopes();
           }
           if (decision.kind === "allow") {

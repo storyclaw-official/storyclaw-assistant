@@ -26,7 +26,16 @@ function parseOrigin(
   }
 }
 
-const BUILTIN_ALLOWED_ORIGINS = new Set(["https://storyclaw.com", "https://app.storyclaw.com"]);
+const BUILTIN_ALLOWED_ORIGINS = new Set([
+  "https://storyclaw.com",
+  "https://app.storyclaw.com",
+  "http://localhost",
+]);
+
+export function isBuiltinAllowedOrigin(originRaw?: string): boolean {
+  const parsed = parseOrigin(originRaw);
+  return parsed !== null && BUILTIN_ALLOWED_ORIGINS.has(parsed.origin);
+}
 
 export function checkBrowserOrigin(params: {
   requestHost?: string;

@@ -286,7 +286,7 @@ describe("gateway auth browser hardening", () => {
     });
   });
 
-  test("rejects forged loopback origin for control-ui when proxy headers make client non-local", async () => {
+  test("rejects control-ui without device identity even with loopback origin when proxy headers make client non-local", async () => {
     testState.gatewayAuth = { mode: "token", token: "secret" };
     await withGatewayServer(async ({ port }) => {
       const ws = await openWs(port, {
@@ -303,7 +303,6 @@ describe("gateway auth browser hardening", () => {
           },
         });
         expect(res.ok).toBe(false);
-        expect(res.error?.message ?? "").toContain("origin not allowed");
       } finally {
         ws.close();
       }

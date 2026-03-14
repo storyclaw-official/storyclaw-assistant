@@ -118,6 +118,8 @@ type SimpleApiKeyProviderFlow = {
   noteDefault?: string;
   noteMessage?: string;
   noteTitle?: string;
+  /** Write apiKey inline in openclaw.json instead of auth-profiles.json */
+  inlineApiKey?: boolean;
 };
 
 const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProviderFlow>> = {
@@ -364,6 +366,7 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     noteDefault: STORYCLAW_DEFAULT_MODEL_REF,
     noteMessage: "Get your API key at https://app.storyclaw.com",
     noteTitle: "StoryClaw (Asia)",
+    inlineApiKey: true,
   },
   "storyclaw-ap-api-key": {
     provider: "storyclaw",
@@ -378,6 +381,7 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     noteDefault: STORYCLAW_DEFAULT_MODEL_REF,
     noteMessage: "Get your API key at https://app.storyclaw.com",
     noteTitle: "StoryClaw (Asia)",
+    inlineApiKey: true,
   },
   "storyclaw-us-api-key": {
     provider: "storyclaw",
@@ -392,6 +396,7 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     noteDefault: STORYCLAW_DEFAULT_MODEL_REF,
     noteMessage: "Get your API key at https://app.storyclaw.com",
     noteTitle: "StoryClaw (US)",
+    inlineApiKey: true,
   },
 };
 
@@ -415,6 +420,7 @@ async function applyApiKeyProviderWithDefaultModel({
   applyProviderConfig,
   noteMessage,
   noteTitle,
+  inlineApiKey,
   tokenProvider = normalizedTokenProvider,
   normalize = normalizeApiKeyInput,
   validate = validateApiKeyInput,
@@ -431,12 +437,14 @@ async function applyApiKeyProviderWithDefaultModel({
   applyProviderConfig: ApiKeyProviderConfigApplier;
   noteMessage?: string;
   noteTitle?: string;
+  inlineApiKey?: boolean;
   tokenProvider?: string;
   normalize?: (value: string) => string;
   validate?: (value: string) => string | undefined;
   noteDefault?: string;
 }): Promise<ApplyAuthChoiceResult> {
   let nextConfig = config;
+  let capturedApiKey: SecretInput | undefined;
 
   await ensureApiKeyFromOptionEnvOrPrompt({
     token: params.opts?.token,
@@ -448,7 +456,10 @@ async function applyApiKeyProviderWithDefaultModel({
     envLabel,
     promptMessage,
     setCredential: async (apiKey, mode) => {
-      await setCredential(apiKey, mode);
+      capturedApiKey = apiKey;
+      if (!inlineApiKey) {
+        await setCredential(apiKey, mode);
+      }
     },
     noteMessage,
     noteTitle,
@@ -457,11 +468,24 @@ async function applyApiKeyProviderWithDefaultModel({
     prompter: params.prompter,
   });
 
-  nextConfig = applyAuthProfileConfig(nextConfig, {
-    profileId,
-    provider,
-    mode: "api_key",
-  });
+  if (!inlineApiKey) {
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId,
+      provider,
+      mode: "api_key",
+    });
+  }
+
+  if (inlineApiKey && capturedApiKey) {
+    const providers = { ...nextConfig.models?.providers };
+    const existing = providers[provider] ?? {};
+    providers[provider] = { ...existing, apiKey: capturedApiKey } as (typeof providers)[string];
+    nextConfig = {
+      ...nextConfig,
+      models: { ...nextConfig.models, providers },
+    } as typeof nextConfig;
+  }
+
   setConfig(nextConfig);
   await applyProviderDefaultModel({
     defaultModel,
@@ -582,5 +606,6 @@ export async function applySimpleAuthChoiceApiProvider({
     tokenProvider: simpleApiKeyProviderFlow.tokenProvider,
     normalize: simpleApiKeyProviderFlow.normalize,
     validate: simpleApiKeyProviderFlow.validate,
+    inlineApiKey: simpleApiKeyProviderFlow.inlineApiKey,
   });
 }
